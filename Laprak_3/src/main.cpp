@@ -1,71 +1,61 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <DHT.h>
 
-#define BLYNK_DEVICE_NAME "Esp32IoT"
-#define BLYNK_PRINT Serial
+// Konfigurasi DHT22
+#define DHTPIN 19
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
 
-#define BLYNK_AUTH_TOKEN "aGDARj1OyS0EJlfBgNVxv-YkNULRLnnI"
-#define BLYNK_TEMPLATE_ID "TMPL65IBPXVXd"
-#define BLYNK_TEMPLATE_NAME "Template1"
+// Konfigurasi LDR
+#define LDR_PIN 34
 
-#include <WiFi.h>
-#include <BlynkSimpleEsp32.h>
-#include <DHTesp.h> //Library untuk DHT
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-char auth[] = BLYNK_AUTH_TOKEN ; //Auth Token
-
-char ssid[] = "Wokwi-GUEST"; //nama hotspot yang digunakan
-char pass[] = ""; //password hotspot yang digunakan
-
-const int DHT_PIN = 15;
-
-int value0, value1, value2, value3, value6;
-
-byte LED_R = 26;
-byte LED_Y = 27;
-byte LED_G = 14;
-byte LED_B = 12;
-
-DHTesp dht;
-
-BlynkTimer timer;
-
-//function untuk pengiriman sensor
-void sendSensor()
-{
- TempAndHumidity  data = dht.getTempAndHumidity();
-
-//menampilkan temperature pada Serial monitor
-Serial.print("% Temperature: ");
-Serial.print(data.temperature);
-Serial.println("C ");
-Serial.print("% Kelembaban: ");
-Serial.print(data.humidity);
-Serial.println("% ");
-
-Blynk.virtualWrite(V0, data.temperature); //mengirimkan data temperatur ke Virtual pin VO di Blynk Cloud
-Blynk.virtualWrite(V1, data.humidity); //mengirimkan data kelemaban ke Virtual pin V1 di Blynk Cloud
+void setup() {
+    Serial.begin(115200);
+    dht.begin();
+    lcd.init();
+    lcd.backlight();
 }
 
-BLYNK_WRITE(V2)
-{
-  int nilaiBacaIO =param.asInt();
-   digitalWrite(LED_R, nilaiBacaIO);
-  Blynk.virtualWrite(V3, nilaiBacaIO);
-}
+void loop() {
+    // Membaca suhu dan kelembapan dari DHT22
+    float temperature = dht.readTemperature();
+    float humidity = dht.readHumidity();
 
-void setup()
-{
-// Debug console
-Serial.begin(115200); //serial monitor menggunakan bautrate 9600
-dht.setup(DHT_PIN, DHTesp::DHT22);
-pinMode(LED_R, OUTPUT);
+    // Membaca intensitas cahaya dari LDR (0-4095 untuk ESP32)
+    int lightValue = analogRead(LDR_PIN);
+    float lightPercentage = (lightValue / 4095.0) * 100.0; // Konversi ke persen
 
-Blynk.begin(auth, ssid, pass); //memulai Blynk
-timer.setInterval(1000, sendSensor); //Mengaktifkan timer untuk pengiriman data 1000ms
-}
+    // Jika pembacaan gagal, tampilkan pesan error
+    if (isnan(temperature) || isnan(humidity)) {
+        Serial.println("Gagal membaca dari sensor DHT!");
+        return;
+    }
 
-void loop()
-{
+    // Menampilkan data di Serial Monitor
+    Serial.print("Suhu: ");
+    Serial.print(temperature);
+    Serial.print("°C, Kelembapan: ");
+    Serial.print(humidity);
+    Serial.print("%, Cahaya: ");
+    Serial.print(lightPercentage);
+    Serial.println("%");
 
-Blynk.run(); //menjalankan blynk
-timer.run(); //menjalankan timer
+    // Menampilkan data di LCD
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("T:");
+    lcd.print(temperature);
+    lcd.print("C H:");
+    lcd.print(humidity);
+    lcd.print("%");
+
+    lcd.setCursor(0, 1);
+    lcd.print("Cahaya: ");
+    lcd.print(lightPercentage);
+    lcd.print("%");
+
+    delay(2000); // Tunggu 2 detik sebelum membaca lagi
 }
